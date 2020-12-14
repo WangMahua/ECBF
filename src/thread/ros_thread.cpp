@@ -13,7 +13,6 @@ mutex ros_mutex;
 
 void odom_callback(nav_msgs::Odometry odom)
 {
-	ros_mutex.lock();
 //	cout << odom.pose.pose.position.x << endl;
 	send_pose_to_serial( 
 				odom.pose.pose.position.x,
@@ -27,7 +26,6 @@ void odom_callback(nav_msgs::Odometry odom)
 				odom.twist.twist.linear.y,
 				odom.twist.twist.linear.z
 			);
-	ros_mutex.unlock();
 }
 int ros_thread_entry(){
 	

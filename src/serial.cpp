@@ -12,28 +12,6 @@ using namespace std;
 
 int serial_fd = 0;
 
-int check_rigid_body_name(char *name, int *id)
-{
-	char tracker_id_s[100] = {0};
-
-	if(name[0] == 'M' && name[1] == 'A' && name[2] == 'V') {
-		strncpy(tracker_id_s, name + 3, strlen(name) - 3);
-	}
-
-	//ROS_INFO("%s -> %s", name, tracker_id_s);
-
-	char *end;
-	int tracker_id = std::strtol(tracker_id_s, &end, 10);
-	if (*end != '\0' || end == tracker_id_s) { //FIXME
-		ROS_FATAL("Invalid tracker name %s, correct format: MAV + number, e.g: MAV1", name);
-		return 1;
-	}
-
-	*id = tracker_id;
-
-	return 0;
-}
-
 void serial_init(char *port_name, int baudrate)
 {
 	//open the port
@@ -72,6 +50,28 @@ void serial_init(char *port_name, int baudrate)
 	tcflush(serial_fd, TCIFLUSH);
 	tcsetattr(serial_fd, TCSANOW, &options);
 }
+int check_rigid_body_name(char *name, int *id)
+{
+	char tracker_id_s[100] = {0};
+
+	if(name[0] == 'M' && name[1] == 'A' && name[2] == 'V') {
+		strncpy(tracker_id_s, name + 3, strlen(name) - 3);
+	}
+
+	//ROS_INFO("%s -> %s", name, tracker_id_s);
+
+	char *end;
+	int tracker_id = std::strtol(tracker_id_s, &end, 10);
+	if (*end != '\0' || end == tracker_id_s) { //FIXME
+		ROS_FATAL("Invalid tracker name %s, correct format: MAV + number, e.g: MAV1", name);
+		return 1;
+	}
+
+	*id = tracker_id;
+
+	return 0;
+}
+
 
 void serial_puts(char *s, size_t size)
 {
@@ -107,13 +107,13 @@ void send_pose_to_serial(char *tracker_name, float pos_x_m, float pos_y_m, float
 	double real_freq = 1.0f / (current_time - last_execute_time); //real sending frequeuncy
 
 	last_execute_time = current_time;
-
+/*
 	ROS_INFO("[%dHz] id:%f, position=(x:%.2f, y:%.2f, z:%.2f), "
                  "orientation=(x:%.2f, y:%.2f, z:%.2f, w:%.2f)",
         	 tracker_id, real_freq,
                  pos_x_m * 100.0f, pos_y_m * 100.0f, pos_z_m * 100.0f,
                  quat_x, quat_y, quat_z, quat_w);
-
+*/
 	/*+------------+----------+----+---+---+---+----+----+----+----+----------+
          *| start byte | checksum | id | x | y | z | qx | qy | qz | qw | end byte |
          *+------------+----------+----+---+---+---+----+----+----+----+----------+*/
@@ -164,14 +164,14 @@ void send_pose_to_serial(float pos_x_m, float pos_y_m, float pos_z_m,
 	double real_freq = 1.0f / (current_time - last_execute_time); //real sending frequeuncy
 
 	last_execute_time = current_time;
-
+/*
 	ROS_INFO("[%fHz], position=(x:%.2f, y:%.2f, z:%.2f), "
                  "orientation=(x:%.2f, y:%.2f, z:%.2f, w:%.2f),"
 		"velocity=(x:%.2f,y:%.2f,z:%.2f)",
         	 real_freq,
              	pos_x_m * 100.0f, pos_y_m * 100.0f, pos_z_m * 100.0f,
                  quat_x *100.0f , quat_y *100.0f, quat_z *100.0f, quat_w,vel_x,vel_y,vel_z);
-
+*/
 	/*+------------+----------+---+---+---+----+----+----+----+----+----+----+----------
          *| start byte | checksum | x | y | z | qx | qy | qz | qw | vx | vy | vz | end byte |
          *+------------+----------+---+---+---+----+----+----+----+----+----+----+---------*/

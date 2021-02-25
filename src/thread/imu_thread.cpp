@@ -44,8 +44,6 @@ uint8_t generate_imu_checksum_byte(uint8_t *payload, int payload_count)
 
 int imu_decode(uint8_t *buf){
 	static float x_array_uart[100];
-	static int flag = 0;
-	static int deviation_flag = 0;
 	uint8_t recv_checksum = buf[1];
 	uint8_t checksum = generate_imu_checksum_byte(&buf[3], IMU_SERIAL_MSG_SIZE - 3);
 	if(checksum != recv_checksum) {
@@ -64,28 +62,6 @@ int imu_decode(uint8_t *buf){
 	memcpy(&imu.gyrop[1], &buf[18], sizeof(float));
 	memcpy(&imu.gyrop[2], &buf[22], sizeof(float));
 	
-	if(flag<10){
-		imu_average[0]+=imu.acc[0];
-		imu_average[1]+=imu.acc[1];
-		imu_average[2]+=imu.acc[2];
-		flag++;
-	}
-	else if(flag==10){
-		imu_average[0] /= 11;
-		imu_average[1] /= 11;
-		imu_average[2] /= 11;
-		flag++;
-	}
-
-	if(deviation_flag<N){
-		x_array_uart[deviation_flag] = imu.gyrop[0]*M_PI/180.0f;
-		deviation_flag++;
-	}
-	else if(deviation_flag==N){
-		imu.deviation_acc = calc_deviation(x_array_uart);
-
-		deviation_flag++;
-	}
 	return 0;
 
 
@@ -110,15 +86,10 @@ void imu_buf_push(uint8_t c)
 	}
 }
 
-int flag_imu = 1;
-void flag_imu_callback(std_msgs::Int32 data){
-	flag_imu = data.data;
-}
 int imu_thread_entry(){
 	sensor_msgs::Imu IMU_data;
 	ros::NodeHandle n;
 	ros::Publisher pub = n.advertise<sensor_msgs::Imu>("imu/data_raw", 5);
-	ros::Subscriber sub = n.subscribe("flag_imu", 5,flag_imu_callback);
 	char c;
 	imu.buf_pos = 0;
 	while(ros::ok()){
@@ -133,41 +104,19 @@ int imu_thread_entry(){
 				*/
 				if(imu_decode(imu.buf)==0)
 				{
-					if(flag_imu == 1)
-					{
-						IMU_data.header.stamp = ros::Time::now();
-						IMU_data.header.frame_id = "base_link";
-						IMU_data.linear_acceleration.x = imu.acc[0];
-						IMU_data.linear_acceleration.y = -imu.acc[1];
-						IMU_data.linear_acceleration.z = -imu.acc[2];
-						IMU_data.angular_velocity.x = imu.gyrop[0]*M_PI/180.0f;
-						IMU_data.angular_velocity.y = -imu.gyrop[1]*M_PI/180.0f;
-						IMU_data.angular_velocity.z = -imu.gyrop[2]*M_PI/180.0f;
-						IMU_data.angular_velocity_covariance={1.2184696791468346e-07, 0.0, 0.0, 0.0, 1.2184696791468346e-07, 0.0, 0.0, 0.0, 1.2184696791468346e-07};
-						IMU_data.linear_acceleration_covariance={8.999999999999999e-08, 0.0, 0.0, 0.0, 8.999999999999999e-08, 0.0, 0.0, 0.0, 8.999999999999999e-08};
+					IMU_data.header.stamp = ros::Time::now();
+					IMU_data.header.frame_id = "base_link";
+					// imu.acc is ned , IMU_data should be enu
+					IMU_data.linear_acceleration.x = imu.acc[1];
+					IMU_data.linear_acceleration.y = imu.acc[0];
+					IMU_data.linear_acceleration.z = -imu.acc[2];
+					IMU_data.angular_velocity.x = imu.gyrop[1]*M_PI/180.0f;
+					IMU_data.angular_velocity.y = imu.gyrop[0]*M_PI/180.0f;
+					IMU_data.angular_velocity.z = -imu.gyrop[2]*M_PI/180.0f;
+					IMU_data.angular_velocity_covariance={1.2184696791468346e-07, 0.0, 0.0, 0.0, 1.2184696791468346e-07, 0.0, 0.0, 0.0, 1.2184696791468346e-07};
+					IMU_data.linear_acceleration_covariance={8.999999999999999e-08, 0.0, 0.0, 0.0, 8.999999999999999e-08, 0.0, 0.0, 0.0, 8.999999999999999e-08};
 
-						pub.publish(IMU_data);
-					}
-					if(flag_imu == 2)
-					{
-						IMU_data.header.stamp = ros::Time::now();
-						IMU_data.header.frame_id = "base_link";
-						IMU_data.linear_acceleration.x = imu_average[0];
-						IMU_data.linear_acceleration.y = imu_average[1];
-						IMU_data.linear_acceleration.z = imu_average[2];
-						IMU_data.angular_velocity.x = 0;
-						IMU_data.angular_velocity.y = 0;
-						IMU_data.angular_velocity.z = 0;
-						IMU_data.angular_velocity_covariance={1.2184696791468346e-07, 0.0, 0.0, 0.0, 1.2184696791468346e-07, 0.0, 0.0, 0.0, 1.2184696791468346e-07};
-						IMU_data.linear_acceleration_covariance={8.999999999999999e-08, 0.0, 0.0, 0.0, 8.999999999999999e-08, 0.0, 0.0, 0.0, 8.999999999999999e-08};
-
-						pub.publish(IMU_data);
-					}
-//					cout<<"imu_acc_x: "<<imu.acc[0] << " imu_acc_y: " <<imu.acc[1] << " imu_acc_z: "  << imu.acc[2] ;
-//					cout<<"gyrop_x: " <<imu.gyrop[0] << " gyrop_y: " <<imu.gyrop[1] << "gyrop_z" << imu.gyrop[2] <<endl; 
-					//imu.buf_pos = 0;
-	//				cout<<"flag: "<<flag_imu<<endl;
-	//				cout<<"average:" << imu_average[0] <<" " <<imu_average[1] << " " << imu_average[2] << "deviation" << imu.deviation_acc << endl;
+					pub.publish(IMU_data);
 				}
 			}
 		}

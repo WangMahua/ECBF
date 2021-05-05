@@ -90,6 +90,7 @@ static uint8_t generate_vins_mono_checksum_byte(uint8_t *payload, int payload_co
 	return result;
 }
 #define VINS_MONO_SERIAL_MSG_SIZE 44
+#define DRONE_ID 1
 void send_pose_to_serial(float pos_x_m, float pos_y_m, float pos_z_m,
 			 float quat_x, float quat_y, float quat_z, float quat_w,
 			 float vel_x,float vel_y,float vel_z)
@@ -110,7 +111,7 @@ void send_pose_to_serial(float pos_x_m, float pos_y_m, float pos_z_m,
 	msg_pos += sizeof(uint8_t);
 	msg_buf[msg_pos] = 0;
 	msg_pos += sizeof(uint8_t);
-	msg_buf[msg_pos] = 0;//tracker_if
+	msg_buf[msg_pos] = DRONE_ID;//tracker_id
 	msg_pos += sizeof(uint8_t);
 
 	/* pack payloads */

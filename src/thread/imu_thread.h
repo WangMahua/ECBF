@@ -17,8 +17,6 @@ typedef struct {
 	
 } imu_t ;
 
-double calc_deviation(double*);
-
 uint8_t generate_imu_checksum_byte(uint8_t *, int);
 
 int imu_decode(uint8_t *);

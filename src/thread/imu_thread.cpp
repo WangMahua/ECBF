@@ -11,25 +11,6 @@ using namespace std;
 
 mutex imu_mutex;
 imu_t imu;
-float imu_average[3] = {0,0,-9.8};
-int N = 100;
-double calc_deviation(float* x){
-	double sum = 0;
-	double average = 0;
-	double result = 0;
-	for(int i = 0 ; i<N ; i++ ){
-		sum += x[i];
-	}
-	average = sum / N ;
-	sum =0;
-	for(int i = 0 ; i<N ; i++){
-		sum += pow((x[i]-average),2);
-	}
-	result = sqrt(sum/N);
-	return result;
-	
-}
-
 
 uint8_t generate_imu_checksum_byte(uint8_t *payload, int payload_count)
 {

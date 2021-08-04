@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(vins_uart)
+project(ecbf_uart)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -14,8 +14,10 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   tf2_ros
   sensor_msgs
+  geometry_msgs
 )
 
+find_package(osqp REQUIRED)
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -107,7 +109,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES vins_uart
+  LIBRARIES ecbf_uart
   CATKIN_DEPENDS roscpp rospy std_msgs
   DEPENDS system_lib
 )
@@ -128,7 +130,8 @@ set(INC
 include_directories(
  include
   ${catkin_INCLUDE_DIRS}
-  ${vins_uart_INCLUDE_DIRS}
+  ${osqp_INCLUDE_DIRS}
+  ${ecbf_uart_INCLUDE_DIRS}
   ${INC}
 )
 
@@ -136,7 +139,6 @@ include_directories(
  add_library(${PROJECT_NAME}
    src/main.cpp
    src/serial.cpp
-   src/thread/imu_thread.cpp
    src/thread/ros_thread.cpp
  )
 ## Add cmake target dependencies of the library
@@ -147,7 +149,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/vins_uart_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/ecbf_uart_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -211,7 +213,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_vins_uart.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_ecbf_uart.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
@@ -219,12 +221,31 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
+add_library(imu_thread
+   src/thread/imu_thread.cpp
+ )
+
+target_link_libraries(imu_thread PUBLIC
+  osqp::osqp
+)
+add_executable(time
+  src/time.cpp
+)
+target_link_libraries(time
+  ${catkin_LIBRARIES}
+)
 add_executable(vins_to_controller
   src/main.cpp
   src/serial.cpp
-  src/thread/imu_thread.cpp
   src/thread/ros_thread.cpp
 )
-target_link_libraries(vins_to_controller
+target_link_libraries(vins_to_controller PUBLIC
   ${catkin_LIBRARIES}
+  imu_thread
 )
+add_executable(hello src/hello.cpp)
+target_link_libraries(hello 
+  ${catkin_LIBRARIES}
+ osqp::osqp
+)
+

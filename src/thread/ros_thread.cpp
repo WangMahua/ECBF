@@ -2,7 +2,7 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include <nav_msgs/Odometry.h>
-#include "vins_uart/serial.hpp"
+#include "ecbf_uart/serial.hpp"
 #include "ros_thread.h"
 #include <mutex>
 

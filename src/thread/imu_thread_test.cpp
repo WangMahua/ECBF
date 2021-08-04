@@ -24,8 +24,8 @@ int time_init = 0;
 
 void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	if(time_init<1){
-		now_time = (float)msg->header.stamp.sec + (float)msg->header.stamp.nsec;
-		last_time = now_time;
+		now_time = msg->header.stamp.sec;
+		last_time = msg->header.stamp.sec;
 		pos[0] = msg->pose.position.x;
 		pos[1] = msg->pose.position.y;
 		pos[2] = msg->pose.position.z;
@@ -37,14 +37,14 @@ void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 		last_pos[1] = pos[1];
 		last_pos[2] = pos[2];
 		last_time = now_time;
-		now_time = (float)msg->header.stamp.sec + (float)msg->header.stamp.nsec;
+		now_time = msg->header.stamp.sec;
 		pos[0] = msg->pose.position.x;
 		pos[1] = msg->pose.position.y;
 		pos[2] = msg->pose.position.z;
-		delta_time = (float)now_time - (float)last_time;
-		vel[0] = (pos[0]-last_pos[0])/(float)delta_time;
-		vel[1] = (pos[1]-last_pos[1])/(float)delta_time;
-		vel[2] = (pos[2]-last_pos[2])/(float)delta_time;	
+		delta_time = now_time - last_time;
+		vel[0] = (pos[0]-last_pos[0])/delta_time;
+		vel[1] = (pos[1]-last_pos[1])/delta_time;
+		vel[2] = (pos[2]-last_pos[2])/delta_time;	
 	
 	}
 
@@ -119,22 +119,14 @@ float* qp_solve(float* acc){
     c_int P_i[3] = {0, 1, 2, };
     c_int P_p[4] = {0, 1, 2, 3,};
     c_float q[3] = {-acc[0], -acc[1], -acc[2]};
-    c_float A_x[3] = {1.0, 1.0, 1.0, };
+    c_float A_x[4] = {1.0, 1.0, 1.0, };
     c_int A_nnz = 3;
     c_int A_i[3] = {0, 1, 2, };
     c_int A_p[4] = {0, 1, 2, 3, };
-    c_float l[3] = {-K1*(1+px)-K2*(vx), -K1*(1+py)-K2*(vy), -K1*(1+pz)-K2*(vz), };
+    c_float l[3] = {-K1*(1-px)-K2*(vx), -K1*(1-py)-K2*(vy), -K1*(1-pz)-K2*(vz), };
     c_float u[3] = {K1*(1-px)+K2*(vx),K1*(1-py)+K2*(vy), K1*(1-pz)+K2*(vz), };
-/*
-	cout << "px:"<< px<<"\n";
-	cout << "py:"<< py<<"\n";
-	cout << "pz:"<< pz<<"\n";
-	cout << "vx:"<< vx<<"\n";
-	cout << "vy:"<< vy<<"\n";
-	cout << "vz:"<< vz<<"\n";
-	*/
-	c_int n = 3;
-    	c_int m = 3;
+    c_int n = 3;
+    c_int m = 3;
 
     // Exitflag
     c_int exitflag = 0;
@@ -198,7 +190,7 @@ int imu_thread_entry(){
 	float acc_x,acc_y,acc_z;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
-	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV3/pose", 1, pos_callback);
+	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_ode/MAV1/pose", 1, pos_callback);
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
 			imu_buf_push(c); 
@@ -223,17 +215,27 @@ int imu_thread_entry(){
 					}
 					force = force/1000*4*g;
 					force = force<0?0:force;
-/*
 					cout <<"roll:" << rc_roll<<'\n';
 					cout <<"pitch:" << rc_pitch<<'\n';
 					cout <<"yaw:" << rc_yaw<<'\n';
 					cout <<"throttle:" << rc_throttle<<'\n';
-*/
 						
 					acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
 					acc_y = g*(rc_roll*sin(rc_yaw)-rc_pitch*cos(rc_yaw));
 					acc_z = force/m-g;
-
+					
+					roll_d = (cos(rc_yaw)*acc_x+sin(rc_yaw)*acc_y)/g*180.0/M_PI;
+					pitch_d = (-cos(rc_yaw)*acc_y+sin(rc_yaw)*acc_x)/g*180.0/M_PI;
+					force_d = m*(acc_z +g);
+					force_d = force_d /4 *1000 /9.81;
+					cout << "roll_d:"<<roll_d<<'\n';
+					cout << "pitch_d:"<<pitch_d<<'\n';
+					
+					double throttle_d=0;
+                                     	for(int i = 0;i<6;i++){
+                                        	 throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
+                               		}
+					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
 					
 					float acc_d[3] ;
 					acc_d[0] = acc_x;
@@ -244,28 +246,11 @@ int imu_thread_entry(){
 					cout << "acc[0]:"<<acc_d[0]<<'\n';
 					cout << "acc[1]:"<<acc_d[1]<<'\n';
 					cout << "acc[2]:"<<acc_d[2]<<'\n';
-
 					qp_solve(acc_d);
 					cout << "qp acc[0]:"<<acc_d[0]<<'\n';
 					cout << "qp acc[1]:"<<acc_d[1]<<'\n';
 					cout << "qp acc[2]:"<<acc_d[2]<<'\n';
-				
-					roll_d = (cos(rc_yaw)*acc_d[0]+sin(rc_yaw)*acc_d[1])/g*180.0/M_PI;
-					pitch_d = (-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI;
-					force_d = m*(acc_d[2] +g);
-					force_d = force_d /4 *1000 /9.81;
-/*
-					cout << "roll_d:"<<roll_d<<'\n';
-					cout << "pitch_d:"<<pitch_d<<'\n';
-					*/
-					double throttle_d=0;
-                                     	for(int i = 0;i<6;i++){
-                                        	 throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
-                               		}
-/*
-					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
 
-*/
 
 				}
 			}

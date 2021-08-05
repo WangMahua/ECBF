@@ -17,7 +17,7 @@ using namespace std;
 
 mutex imu_mutex;
 imu_t imu;
-float pos[3] = {1,1,1};
+float pos[3] = {0.5,0.5,0.5};
 float vel[3] = {1,1,1};
 float now_time,last_time;
 int time_init = 0;
@@ -199,6 +199,7 @@ int imu_thread_entry(){
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
 	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV3/pose", 1, pos_callback);
+	cout<<"start'\n'";
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
 			imu_buf_push(c); 
@@ -239,6 +240,7 @@ int imu_thread_entry(){
 					acc_d[0] = acc_x;
 					acc_d[1] = acc_y;
 					acc_d[2] = acc_z;
+					cout<<"123'\n'";
 					ros::spinOnce();
 
 					cout << "acc[0]:"<<acc_d[0]<<'\n';
@@ -246,26 +248,29 @@ int imu_thread_entry(){
 					cout << "acc[2]:"<<acc_d[2]<<'\n';
 
 					qp_solve(acc_d);
-					cout << "qp acc[0]:"<<acc_d[0]<<'\n';
+/*					cout << "qp acc[0]:"<<acc_d[0]<<'\n';
 					cout << "qp acc[1]:"<<acc_d[1]<<'\n';
 					cout << "qp acc[2]:"<<acc_d[2]<<'\n';
-				
+*/				
 					roll_d = (cos(rc_yaw)*acc_d[0]+sin(rc_yaw)*acc_d[1])/g*180.0/M_PI;
 					pitch_d = (-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI;
 					force_d = m*(acc_d[2] +g);
 					force_d = force_d /4 *1000 /9.81;
-/*
+
 					cout << "roll_d:"<<roll_d<<'\n';
 					cout << "pitch_d:"<<pitch_d<<'\n';
-					*/
-					double throttle_d=0;
+					
+					float throttle_d=0;
                                      	for(int i = 0;i<6;i++){
                                         	 throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
                                		}
-/*
+
 					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
 
-*/
+
+					//send sol to uart
+					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+
 
 				}
 			}

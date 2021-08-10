@@ -198,7 +198,7 @@ int imu_thread_entry(){
 	float acc_x,acc_y,acc_z;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
-	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV3/pose", 1, pos_callback);
+	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 1, pos_callback);
 	cout<<"start'\n'";
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
@@ -240,7 +240,6 @@ int imu_thread_entry(){
 					acc_d[0] = acc_x;
 					acc_d[1] = acc_y;
 					acc_d[2] = acc_z;
-					cout<<"123'\n'";
 					ros::spinOnce();
 
 					cout << "acc[0]:"<<acc_d[0]<<'\n';
@@ -248,10 +247,10 @@ int imu_thread_entry(){
 					cout << "acc[2]:"<<acc_d[2]<<'\n';
 
 					qp_solve(acc_d);
-/*					cout << "qp acc[0]:"<<acc_d[0]<<'\n';
+					cout << "qp acc[0]:"<<acc_d[0]<<'\n';
 					cout << "qp acc[1]:"<<acc_d[1]<<'\n';
 					cout << "qp acc[2]:"<<acc_d[2]<<'\n';
-*/				
+				
 					roll_d = (cos(rc_yaw)*acc_d[0]+sin(rc_yaw)*acc_d[1])/g*180.0/M_PI;
 					pitch_d = (-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI;
 					force_d = m*(acc_d[2] +g);

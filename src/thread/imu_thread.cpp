@@ -189,16 +189,16 @@ int imu_thread_entry(){
 	float rc_throttle,acc[3];
 	float rc_roll,rc_pitch,rc_yaw;
 	float per2thrust_coeff[6] = {930.56,-3969,4983.2,-1664.5,482.08,-7.7146};
-	float thrust2per_coeff[6] = {-1.11e-15,-3.88e-12,1.09e-8,-8.63e-6,3.62e-3,2.04e-2};
+	float thrust2per_coeff[6] = {-1.11e-15,-3.88e-12,1.09e-8,-8.63e-6,3.62e-3,0};
 	float force=0;
-	float m = 1.75;
+	float m = 1.42;
 	float pose[3];
 	float velocity[3];
 	float roll_d,pitch_d,yaw_d,force_d;
 	float acc_x,acc_y,acc_z;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
-	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV3/pose", 1, pos_callback);
+	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 1, pos_callback);
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
 			imu_buf_push(c); 

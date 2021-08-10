@@ -189,9 +189,9 @@ int imu_thread_entry(){
 	float rc_throttle,acc[3];
 	float rc_roll,rc_pitch,rc_yaw;
 	float per2thrust_coeff[6] = {930.56,-3969,4983.2,-1664.5,482.08,-7.7146};
-	float thrust2per_coeff[6] = {-1.11e-15,-3.88e-12,1.09e-8,-8.63e-6,3.62e-3,2.04e-2};
+	float thrust2per_coeff[6] = {-1.11e-15,-3.88e-12,1.09e-8,-8.63e-6,3.62e-3,0};
 	float force=0;
-	float m = 1.75;
+	float m = 1.39;
 	float pose[3];
 	float velocity[3];
 	float roll_d,pitch_d,yaw_d,force_d;
@@ -256,17 +256,17 @@ int imu_thread_entry(){
 					force_d = m*(acc_d[2] +g);
 					force_d = force_d /4 *1000 /9.81;
 
-					cout << "roll_d:"<<roll_d<<'\n';
+/*					cout << "roll_d:"<<roll_d<<'\n';
 					cout << "pitch_d:"<<pitch_d<<'\n';
 					
-					float throttle_d=0;
+*/					float throttle_d=0;
                                      	for(int i = 0;i<6;i++){
                                         	 throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
                                		}
 
-					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
+/*					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
 
-
+*/
 					//send sol to uart
 					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 

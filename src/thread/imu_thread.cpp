@@ -132,7 +132,7 @@ float* qp_solve(float* acc){
 	cout << "vx:"<< vx<<"\n";
 	cout << "vy:"<< vy<<"\n";
 	cout << "vz:"<< vz<<"\n";
-	*/
+*/
 	c_int n = 3;
     	c_int m = 3;
 
@@ -187,14 +187,14 @@ int imu_thread_entry(){
 	char c;
 	imu.buf_pos = 0;
 	float rc_throttle,acc[3];
-	float rc_roll,rc_pitch,rc_yaw;
+	float rc_roll,rc_pitch,rc_yaw,rc_ch7;
 	float per2thrust_coeff[6] = {930.56,-3969,4983.2,-1664.5,482.08,-7.7146};
 	float thrust2per_coeff[6] = {-1.11e-15,-3.88e-12,1.09e-8,-8.63e-6,3.62e-3,0};
 	float force=0;
 	float m = 1.39;
 	float pose[3];
 	float velocity[3];
-	float roll_d,pitch_d,yaw_d,force_d;
+	float roll_d,pitch_d,yaw_d,force_d,throttle_d;
 	float acc_x,acc_y,acc_z;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
@@ -216,6 +216,7 @@ int imu_thread_entry(){
 					rc_pitch = -imu.acc[1]*M_PI/180.0;
 					rc_yaw = imu.acc[2]*M_PI/180.0;
 					rc_throttle = imu.gyrop[0];
+					rc_ch7 = imu.gyrop[1];
 					rc_yaw = -90*M_PI/180.0;
 					rc_yaw = 0;
 					force = 0 ;
@@ -230,43 +231,48 @@ int imu_thread_entry(){
 					cout <<"yaw:" << rc_yaw<<'\n';
 					cout <<"throttle:" << rc_throttle<<'\n';
 */
-						
-					acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
-					acc_y = g*(rc_roll*sin(rc_yaw)-rc_pitch*cos(rc_yaw));
-					acc_z = force/m-g;
+					if(rc_ch7<2&&pos[2]>1.5){ /* rc mode change & height >threshold*/
+						acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
+                                        	acc_y = g*(rc_roll*sin(rc_yaw)-rc_pitch*cos(rc_yaw));
+                                        	acc_z = force/m-g;
 
+
+                                        	float acc_d[3] ;
+                                        	acc_d[0] = acc_x;
+                                        	acc_d[1] = acc_y;
+                                        	acc_d[2] = acc_z;
+                                        	ros::spinOnce();
+
+                                        	cout << "acc[0]:"<<acc_d[0]<<'\n';
+                                       		cout << "acc[1]:"<<acc_d[1]<<'\n';
+                                        	cout << "acc[2]:"<<acc_d[2]<<'\n';
+
+                                        	qp_solve(acc_d);
+                                        	cout << "qp acc[0]:"<<acc_d[0]<<'\n';
+                                        	cout << "qp acc[1]:"<<acc_d[1]<<'\n';
+                                        	cout << "qp acc[2]:"<<acc_d[2]<<'\n';
+
+                                        	roll_d = (cos(rc_yaw)*acc_d[0]+sin(rc_yaw)*acc_d[1])/g*180.0/M_PI;
+                                        	pitch_d = (-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI;
+                                        	force_d = m*(acc_d[2] +g);
+                                        	force_d = force_d /4 *1000 /9.81;
+
+                                        	cout << "roll_d:"<<roll_d<<'\n';
+                                        	cout << "pitch_d:"<<pitch_d<<'\n';
+
+               
+                                        	for(int i = 0;i<6;i++){
+                                                	throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
+                                        	}
+
+                                        	cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
+					}else{ 
+						roll_d = imu.acc[0];
+						pitch_d = imu.acc[1];
+						throttle_d = imu.gyrop[0];
 					
-					float acc_d[3] ;
-					acc_d[0] = acc_x;
-					acc_d[1] = acc_y;
-					acc_d[2] = acc_z;
-					ros::spinOnce();
-
-					cout << "acc[0]:"<<acc_d[0]<<'\n';
-					cout << "acc[1]:"<<acc_d[1]<<'\n';
-					cout << "acc[2]:"<<acc_d[2]<<'\n';
-
-					qp_solve(acc_d);
-					cout << "qp acc[0]:"<<acc_d[0]<<'\n';
-					cout << "qp acc[1]:"<<acc_d[1]<<'\n';
-					cout << "qp acc[2]:"<<acc_d[2]<<'\n';
+					}	
 				
-					roll_d = (cos(rc_yaw)*acc_d[0]+sin(rc_yaw)*acc_d[1])/g*180.0/M_PI;
-					pitch_d = (-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI;
-					force_d = m*(acc_d[2] +g);
-					force_d = force_d /4 *1000 /9.81;
-
-					cout << "roll_d:"<<roll_d<<'\n';
-					cout << "pitch_d:"<<pitch_d<<'\n';
-					
-					float throttle_d=0;
-                                     	for(int i = 0;i<6;i++){
-                                        	 throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
-                               		}
-
-					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
-
-
 					//send sol to uart
 					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 

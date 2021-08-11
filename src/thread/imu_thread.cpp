@@ -12,6 +12,13 @@
 
 #define K1 3
 #define K2 2
+#define X_UPPER_BOUND 2
+#define X_LOWER_BOUND -2
+#define Y_UPPER_BOUND 2
+#define Y_LOWER_BOUND -2
+#define Z_UPPER_BOUND 3
+#define Z_LOWER_BOUND 1
+#define ECBF_THESHOLD 0.6
 
 using namespace std;
 
@@ -123,8 +130,8 @@ float* qp_solve(float* acc){
     c_int A_nnz = 3;
     c_int A_i[3] = {0, 1, 2, };
     c_int A_p[4] = {0, 1, 2, 3, };
-    c_float l[3] = {-K1*(1+px)-K2*(vx), -K1*(1+py)-K2*(vy), -K1*(1+pz)-K2*(vz), };
-    c_float u[3] = {K1*(1-px)-K2*(vx),K1*(1-py)-K2*(vy), K1*(1-pz)-K2*(vz), };
+    c_float l[3] = {-K1*(px-X_LOWER_BOUND)-K2*(vx), -K1*(py-Y_LOWER_BOUND)-K2*(vy), -K1*(pz-Z_LOWER_BOUND)-K2*(vz), };
+    c_float u[3] = {K1*(X_UPPER_BOUND-px)-K2*(vx),K1*(Y_UPPER_BOUND-py)-K2*(vy), K1*(Z_UPPER_BOUND-pz)-K2*(vz), };
 /*
 	cout << "px:"<< px<<"\n";
 	cout << "py:"<< py<<"\n";
@@ -231,7 +238,7 @@ int imu_thread_entry(){
 					cout <<"yaw:" << rc_yaw<<'\n';
 					cout <<"throttle:" << rc_throttle<<'\n';
 */
-					if(rc_ch7<2&&pos[2]>1.5){ /* rc mode change & height >threshold*/
+					if(rc_ch7<2 && pos[2]>ECBF_THESHOLD){ /* rc mode change & height > threshold*/
 						acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
                                         	acc_y = g*(rc_roll*sin(rc_yaw)-rc_pitch*cos(rc_yaw));
                                         	acc_z = force/m-g;

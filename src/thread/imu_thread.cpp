@@ -124,7 +124,7 @@ float* qp_solve(float* acc){
     c_int A_i[3] = {0, 1, 2, };
     c_int A_p[4] = {0, 1, 2, 3, };
     c_float l[3] = {-K1*(1+px)-K2*(vx), -K1*(1+py)-K2*(vy), -K1*(1+pz)-K2*(vz), };
-    c_float u[3] = {K1*(1-px)+K2*(vx),K1*(1-py)+K2*(vy), K1*(1-pz)+K2*(vz), };
+    c_float u[3] = {K1*(1-px)-K2*(vx),K1*(1-py)-K2*(vy), K1*(1-pz)-K2*(vz), };
 /*
 	cout << "px:"<< px<<"\n";
 	cout << "py:"<< py<<"\n";
@@ -256,17 +256,17 @@ int imu_thread_entry(){
 					force_d = m*(acc_d[2] +g);
 					force_d = force_d /4 *1000 /9.81;
 
-/*					cout << "roll_d:"<<roll_d<<'\n';
+					cout << "roll_d:"<<roll_d<<'\n';
 					cout << "pitch_d:"<<pitch_d<<'\n';
 					
-*/					float throttle_d=0;
+					float throttle_d=0;
                                      	for(int i = 0;i<6;i++){
                                         	 throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
                                		}
 
-/*					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
+					cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
 
-*/
+
 					//send sol to uart
 					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 

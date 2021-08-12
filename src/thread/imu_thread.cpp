@@ -17,7 +17,7 @@
 #define Y_UPPER_BOUND 2
 #define Y_LOWER_BOUND -2
 #define Z_UPPER_BOUND 3
-#define Z_LOWER_BOUND 1
+#define Z_LOWER_BOUND 0.5
 #define ECBF_THESHOLD 0.6
 
 using namespace std;
@@ -28,6 +28,8 @@ float pos[3] = {0.5,0.5,0.5};
 float vel[3] = {1,1,1};
 float now_time,last_time;
 int time_init = 0;
+int rc_ch7;
+
 
 void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	if(time_init<1){
@@ -83,9 +85,10 @@ int imu_decode(uint8_t *buf){
 	imu.acc[0] = enu_acc_x; //east
 	imu.acc[1] = enu_acc_y; //north
 	imu.acc[2] = enu_acc_z; //up
+
 	/* swap the order of quaternion to make the frame consistent with ahrs' rotation order */
 	memcpy(&imu.gyrop[0], &buf[14], sizeof(float));
-	memcpy(&imu.gyrop[1], &buf[18], sizeof(float));
+	memcpy(&rc_ch7, &buf[18], sizeof(int));
 	memcpy(&imu.gyrop[2], &buf[22], sizeof(float));
 	
 	return 0;
@@ -194,7 +197,7 @@ int imu_thread_entry(){
 	char c;
 	imu.buf_pos = 0;
 	float rc_throttle,acc[3];
-	float rc_roll,rc_pitch,rc_yaw,rc_ch7;
+	float rc_roll,rc_pitch,rc_yaw;
 	float per2thrust_coeff[6] = {930.56,-3969,4983.2,-1664.5,482.08,-7.7146};
 	float thrust2per_coeff[6] = {-1.11e-15,-3.88e-12,1.09e-8,-8.63e-6,3.62e-3,0};
 	float force=0;
@@ -206,7 +209,7 @@ int imu_thread_entry(){
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
 	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 1, pos_callback);
-	cout<<"start'\n'";
+	cout<<"start\n";
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
 			imu_buf_push(c); 
@@ -223,7 +226,7 @@ int imu_thread_entry(){
 					rc_pitch = -imu.acc[1]*M_PI/180.0;
 					rc_yaw = imu.acc[2]*M_PI/180.0;
 					rc_throttle = imu.gyrop[0];
-					rc_ch7 = imu.gyrop[1];
+					//rc_ch7 = imu.gyrop[1];
 					rc_yaw = -90*M_PI/180.0;
 					rc_yaw = 0;
 					force = 0 ;
@@ -237,8 +240,12 @@ int imu_thread_entry(){
 					cout <<"pitch:" << rc_pitch<<'\n';
 					cout <<"yaw:" << rc_yaw<<'\n';
 					cout <<"throttle:" << rc_throttle<<'\n';
+					
 */
-					if(rc_ch7<2 && pos[2]>ECBF_THESHOLD){ /* rc mode change & height > threshold*/
+					cout << rc_ch7 << '\n';
+					cout << pos[2] << '\n';
+
+					if(rc_ch7>1.1 && pos[2]>ECBF_THESHOLD){ /* rc mode change & height > threshold*/
 						acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
                                         	acc_y = g*(rc_roll*sin(rc_yaw)-rc_pitch*cos(rc_yaw));
                                         	acc_z = force/m-g;
@@ -273,7 +280,8 @@ int imu_thread_entry(){
                                         	}
 
                                         	cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
-					}else{ 
+					}else{
+					       cout <<"not triggered!\n";	
 						roll_d = imu.acc[0];
 						pitch_d = imu.acc[1];
 						throttle_d = imu.gyrop[0];

@@ -9,16 +9,18 @@
 #include "osqp.h"
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <ecbf_uart/rc_info.h>
+#include <ecbf_uart/qp_info.h>
 
-#define K1 3
-#define K2 2
-#define X_UPPER_BOUND 2
-#define X_LOWER_BOUND -2
-#define Y_UPPER_BOUND 2
-#define Y_LOWER_BOUND -2
-#define Z_UPPER_BOUND 3
+#define K1 4
+#define K2 15
+#define X_UPPER_BOUND 1
+#define X_LOWER_BOUND -1
+#define Y_UPPER_BOUND 1
+#define Y_LOWER_BOUND -1
+#define Z_UPPER_BOUND 100
 #define Z_LOWER_BOUND 0.5
-#define ECBF_THESHOLD 0.6
+#define ECBF_THESHOLD 0.1
 
 using namespace std;
 
@@ -206,10 +208,19 @@ int imu_thread_entry(){
 	float velocity[3];
 	float roll_d,pitch_d,yaw_d,force_d,throttle_d;
 	float acc_x,acc_y,acc_z;
+	float acc_d[3] ;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
+	ros::Publisher debug_rc_pub = n.advertise<ecbf_uart::rc_info>("rc_info", 1); 
+	ros::Publisher debug_qp_pub = n.advertise<ecbf_uart::qp_info>("qp_info", 1); 
 	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 1, pos_callback);
 	cout<<"start\n";
+
+
+	/* debug */
+	ecbf_uart::rc_info debug_rc;	
+	ecbf_uart::qp_info debug_qp;	
+
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
 			imu_buf_push(c); 
@@ -251,7 +262,7 @@ int imu_thread_entry(){
                                         	acc_z = force/m-g;
 
 
-                                        	float acc_d[3] ;
+                                        	
                                         	acc_d[0] = acc_x;
                                         	acc_d[1] = acc_y;
                                         	acc_d[2] = acc_z;
@@ -266,16 +277,17 @@ int imu_thread_entry(){
                                         	cout << "qp acc[1]:"<<acc_d[1]<<'\n';
                                         	cout << "qp acc[2]:"<<acc_d[2]<<'\n';
 
-                                        	roll_d = (cos(rc_yaw)*acc_d[0]+sin(rc_yaw)*acc_d[1])/g*180.0/M_PI;
-                                        	pitch_d = (-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI;
+                                        	roll_d = -((cos(rc_yaw)*acc_d[0]+sin(rc_yaw)*acc_d[1])/g*180.0/M_PI);
+                                        	pitch_d = -((-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI);
                                         	force_d = m*(acc_d[2] +g);
                                         	force_d = force_d /4 *1000 /9.81;
 
                                         	cout << "roll_d:"<<roll_d<<'\n';
                                         	cout << "pitch_d:"<<pitch_d<<'\n';
 
-               
+						throttle_d = 0;
                                         	for(int i = 0;i<6;i++){
+
                                                 	throttle_d += thrust2per_coeff[5-i]*pow(force_d,i)*100;
                                         	}
 
@@ -286,10 +298,29 @@ int imu_thread_entry(){
 						pitch_d = imu.acc[1];
 						throttle_d = imu.gyrop[0];
 					
-					}	
+					}
+	
 				
+					//debug
+					debug_rc.rc_roll = imu.acc[0];
+					debug_rc.rc_pitch = imu.acc[1];
+					debug_rc.rc_throttle = imu.gyrop[0];
+					debug_rc.qp_roll = roll_d;
+					debug_rc.qp_pitch = pitch_d;
+					debug_rc.qp_throttle = throttle_d;
+					debug_rc_pub.publish(debug_rc);
+
+					debug_qp.acc_x_old = acc_x;
+					debug_qp.acc_y_old = acc_y;
+					debug_qp.acc_z_old = acc_z;
+					debug_qp.acc_x_new = acc_d[0];
+					debug_qp.acc_y_new = acc_d[1];
+					debug_qp.acc_z_new = acc_d[2];
+					debug_qp_pub.publish(debug_qp);
+
 					//send sol to uart
 					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+					//send_pose_to_serial(imu.acc[0],imu.acc[1],imu.gyrop[0],0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 
 
 				}

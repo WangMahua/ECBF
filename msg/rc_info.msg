@@ -4,3 +4,5 @@ float64 rc_throttle
 float64 qp_roll
 float64 qp_pitch
 float64 qp_throttle
+int32 qp_trigger
+int32 boundary_trigger

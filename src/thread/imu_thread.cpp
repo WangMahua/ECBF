@@ -8,6 +8,7 @@
 #include <cmath>
 #include "osqp.h"
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/Vector3.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <ecbf_uart/rc_info.h>
 #include <ecbf_uart/qp_info.h>
@@ -26,36 +27,43 @@ using namespace std;
 
 mutex imu_mutex;
 imu_t imu;
-float pos[3] = {0.5,0.5,0.5};
+static float pos[3] = {0.5,0.5,0.5};
 float vel[3] = {1,1,1};
-float now_time,last_time;
+static double now_time,last_time;
 int time_init = 0;
 int rc_ch7;
 
+geometry_msgs::Vector3 vel_value;
 
 void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	if(time_init<1){
-		now_time = (float)msg->header.stamp.sec + (float)msg->header.stamp.nsec;
+		now_time = msg->header.stamp.toSec();
 		last_time = now_time;
 		pos[0] = msg->pose.position.x;
 		pos[1] = msg->pose.position.y;
 		pos[2] = msg->pose.position.z;
 		time_init++;
 	}else{
-		float delta_time ;
+		double delta_time ;
 		float last_pos[3];
 		last_pos[0] = pos[0];
 		last_pos[1] = pos[1];
 		last_pos[2] = pos[2];
 		last_time = now_time;
-		now_time = (float)msg->header.stamp.sec + (float)msg->header.stamp.nsec;
+		now_time = msg->header.stamp.toSec();
 		pos[0] = msg->pose.position.x;
 		pos[1] = msg->pose.position.y;
 		pos[2] = msg->pose.position.z;
-		delta_time = (float)now_time - (float)last_time;
-		vel[0] = (pos[0]-last_pos[0])/(float)delta_time;
-		vel[1] = (pos[1]-last_pos[1])/(float)delta_time;
-		vel[2] = (pos[2]-last_pos[2])/(float)delta_time;	
+		delta_time = now_time - last_time;
+		vel[0] = (pos[0]-last_pos[0])/delta_time;
+		vel[1] = (pos[1]-last_pos[1])/delta_time;
+		vel[2] = (pos[2]-last_pos[2])/delta_time;
+		cout << "last_time: "<< setprecision(20) << last_time <<'\n';
+		cout << "now_time: " << setprecision(20)<< now_time <<'\n';
+		cout << "dalta_time: " << setprecision(20)<< delta_time <<'\n';
+
+		
+
 	
 	}
 
@@ -209,13 +217,15 @@ int imu_thread_entry(){
 	float roll_d,pitch_d,yaw_d,force_d,throttle_d;
 	float acc_x,acc_y,acc_z;
 	float acc_d[3] ;
+	int boundary_flag,qp_flag ;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
 	ros::Publisher debug_rc_pub = n.advertise<ecbf_uart::rc_info>("rc_info", 1); 
 	ros::Publisher debug_qp_pub = n.advertise<ecbf_uart::qp_info>("qp_info", 1); 
-	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 1, pos_callback);
+	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 10, pos_callback);
+	ros::Publisher vel_pub = n.advertise<geometry_msgs::Vector3>("vel_info", 1); 
 	cout<<"start\n";
-
+	ros::Rate rate(400);
 
 	/* debug */
 	ecbf_uart::rc_info debug_rc;	
@@ -253,8 +263,7 @@ int imu_thread_entry(){
 					cout <<"throttle:" << rc_throttle<<'\n';
 					
 */
-					cout << rc_ch7 << '\n';
-					cout << pos[2] << '\n';
+					cout <<"rc_mode: "<< rc_ch7 << '\n';
 
 					if(rc_ch7>1.1 && pos[2]>ECBF_THESHOLD){ /* rc mode change & height > threshold*/
 						acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
@@ -292,12 +301,25 @@ int imu_thread_entry(){
                                         	}
 
                                         	cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
+
+						qp_flag=0;
+						if(abs(pitch_d-imu.acc[1])>0.2 || abs(roll_d-imu.acc[0])>0.2){
+							qp_flag=15;
+						}
+
 					}else{
-					       cout <<"not triggered!\n";	
+						qp_flag=0;
+						
+					       	cout <<"not triggered!\n";	
 						roll_d = imu.acc[0];
 						pitch_d = imu.acc[1];
 						throttle_d = imu.gyrop[0];
 					
+					}
+
+					boundary_flag = 0;
+					if(abs(pos[0])>1 || abs(pos[1])>1){
+						boundary_flag = 10;
 					}
 	
 				
@@ -322,10 +344,15 @@ int imu_thread_entry(){
 					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 					//send_pose_to_serial(imu.acc[0],imu.acc[1],imu.gyrop[0],0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 
+					vel_value.x = vel[0];
+					vel_value.y = vel[1];
+					vel_value.z = vel[2];
+					vel_pub.publish(vel_value);
+
 
 				}
 			}
 		}
-		
+		rate.sleep();
 	}
 }

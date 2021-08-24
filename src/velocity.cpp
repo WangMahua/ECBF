@@ -9,6 +9,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <ecbf_uart/rc_info.h>
 #include <ecbf_uart/qp_info.h>
+
 double pose[3] = {0,0,0};
 double velocity[3] = {0,0,0};
 double last_pose[3] = {0,0,0};

@@ -8,13 +8,13 @@
 #include <cmath>
 #include "osqp.h"
 #include <geometry_msgs/Twist.h>
-#include <geometry_msgs/Vector3.h>
-#include <geometry_msgs/PoseStamped.h>
 #include <ecbf_uart/rc_info.h>
 #include <ecbf_uart/qp_info.h>
+#include "ros_thread.h"
 
-#define K1 2
-#define K2 0
+
+#define K1 4
+#define K2 2
 #define X_UPPER_BOUND 1
 #define X_LOWER_BOUND -1
 #define Y_UPPER_BOUND 1
@@ -22,90 +22,12 @@
 #define Z_UPPER_BOUND 100
 #define Z_LOWER_BOUND 0.5
 #define ECBF_THESHOLD 0.1
-#define VEL_UPPER_BOUND 10
-#define VEL_LOWER_BOUND -10
 
 using namespace std;
 
 mutex imu_mutex;
 imu_t imu;
-double pos[3] = {0,0,0};
-double velocity[3] = {0,0,0};
-double last_velocity[3] = {0,0,0};
-double last_pose[3] = {0,0,0};
-double last_time,now_time = 0.0;
-bool pose_init_flag = false;
 int rc_ch7;
-ros::Publisher vel_pub;
-
-geometry_msgs::Vector3 vel_value;
-double bond(double value){
-	if (value>VEL_UPPER_BOUND)return VEL_UPPER_BOUND;
-	else if (value<VEL_LOWER_BOUND)return VEL_LOWER_BOUND;	
-	else return value; 
-}
-void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
-		
-		if (pose_init_flag == false){
-			now_time = ros::Time::now().toSec();
-			pos[0] = msg->pose.position.x;
-			pos[1] = msg->pose.position.y;
-			pos[2] = msg->pose.position.z;
-			last_pose[0] = pos[0];
-			last_pose[1] = pos[1];
-			last_pose[2] = pos[2];
-			last_time = now_time;
-			pose_init_flag = true;	
-		}
-		else{
-			now_time = msg->header.stamp.toSec();
-//			now_time = ros::Time::now().toSec();
-			pos[0] = msg->pose.position.x;
-			pos[1] = msg->pose.position.y;
-			pos[2] = msg->pose.position.z;
-
-			double delta_time = now_time - last_time;
-			if(delta_time > 0.008){
-			velocity[0] =(pos[0] - last_pose[0])/delta_time;
-			velocity[1] =(pos[1] - last_pose[1])/delta_time;
-			velocity[2] =(pos[2] - last_pose[2])/delta_time;
-/*
-			if(velocity[0]>8.0f||velocity[0]<-8){
-			cout << "delta time: " << delta_time << '\n';
-			cout << "velocity[0]: " << velocity[0] << '\n';
-			cout << "velocity[1]: " << velocity[1] << '\n';
-			cout << "velocity[2]: " << velocity[2] << '\n';
-			cout << "delta_pos[0]: " << pos[0] - last_pose[0] << '\n';
-			cout << "delta_pos[1]: " << pos[1] - last_pose[1] << '\n';
-			cout << "delta_pos[2]: " << pos[2] - last_pose[2] << '\n';
-			cout << "---\n";}
-/*
-/*
-			velocity[0] =(pos[0] - last_pose[0])/0.0083;
-			velocity[1] =(pos[1] - last_pose[1])/0.0083;
-			velocity[2] =(pos[2] - last_pose[2])/0.0083;
-*/
-			last_pose[0] = pos[0];
-			last_pose[1] = pos[1];
-			last_pose[2] = pos[2];
-			last_time = now_time;
-
-			velocity[0] = bond(velocity[0]);
-			velocity[1] = bond(velocity[1]);
-			velocity[2] = bond(velocity[2]);
-	
-			last_velocity[0] = velocity[0];
-			last_velocity[1] = velocity[1];
-			last_velocity[2] = velocity[2];
-
-			vel_value.x = velocity[0];
-			vel_value.y = velocity[1];
-			vel_value.z = velocity[2];
-			vel_pub.publish(vel_value);	
-			}
-		}
-
-}
 
 uint8_t generate_imu_checksum_byte(uint8_t *payload, int payload_count)
 {
@@ -167,17 +89,9 @@ float* qp_solve(float* acc){
     float px = pos[0];
     float py = pos[1];
     float pz = pos[2];
-    float vx = velocity[0];
-    float vy = velocity[1];
-    float vz = velocity[2];
-
-			cout << "velocity[0]: " << velocity[0] << '\n';
-			cout << "velocity[1]: " << velocity[1] << '\n';
-			cout << "velocity[2]: " << velocity[2] << '\n';
-			cout << "delta_pos[0]: " << pos[0] << '\n';
-			cout << "delta_pos[1]: " << pos[1] << '\n';
-			cout << "delta_pos[2]: " << pos[2]  << '\n';
-cout << "---\n";
+    float vx = vel[0];
+    float vy = vel[1];
+    float vz = vel[2];
 
     // Load problem data
     c_float P_x[3] = {1.0, 1.0, 1.0, };
@@ -258,19 +172,21 @@ int imu_thread_entry(){
 	float thrust2per_coeff[6] = {-1.11e-15,-3.88e-12,1.09e-8,-8.63e-6,3.62e-3,0};
 	float force=0;
 	float m = 1.39;
+	float pose[3];
 	float velocity[3];
 	float roll_d,pitch_d,yaw_d,force_d,throttle_d;
 	float acc_x,acc_y,acc_z;
-	float acc_d[3] = {0,0,0} ;
-	int boundary_flag,qp_flag ;
+	float acc_d[3] ;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
 	ros::Publisher debug_rc_pub = n.advertise<ecbf_uart::rc_info>("rc_info", 1); 
 	ros::Publisher debug_qp_pub = n.advertise<ecbf_uart::qp_info>("qp_info", 1); 
-	ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 1, pos_callback);
-	vel_pub = n.advertise<geometry_msgs::Vector3>("vel_info", 1); 
+	ros::Publisher vel_pub = n.advertise<geometry_msgs::Vector3>("vel_info", 1); 
+	
+	geometry_msgs::Vector3 vel_value;
+	
 	cout<<"start\n";
-	ros::Rate rate(400);
+
 
 	/* debug */
 	ecbf_uart::rc_info debug_rc;	
@@ -281,13 +197,13 @@ int imu_thread_entry(){
 			imu_buf_push(c); 
 			if(imu.buf[0]=='@' && imu.buf[IMU_SERIAL_MSG_SIZE-1] == '+')
 			{
-
-			//	for(int i =0;i<IMU_SERIAL_MSG_SIZE;i++)
-			//		cout << imu.buf[i];
-			//	cout<<endl;
+				/*
+				for(int i =0;i<IMU_SERIAL_MSG_SIZE;i++)
+					cout << imu.buf[i];
+				cout<<endl;
+				*/
 				if(imu_decode(imu.buf)==0)
 				{
-                			ros::spinOnce();
 					rc_roll = -imu.acc[0]*M_PI/180.0;
 					rc_pitch = -imu.acc[1]*M_PI/180.0;
 					rc_yaw = imu.acc[2]*M_PI/180.0;
@@ -301,16 +217,17 @@ int imu_thread_entry(){
 					}
 					force = force/1000*4*g;
 					force = force<0?0:force;
-
-//					cout <<"roll:" << rc_roll<<'\n';
-//					cout <<"pitch:" << rc_pitch<<'\n';
-//					cout <<"yaw:" << rc_yaw<<'\n';
-//					cout <<"throttle:" << rc_throttle<<'\n';
+/*
+					cout <<"roll:" << rc_roll<<'\n';
+					cout <<"pitch:" << rc_pitch<<'\n';
+					cout <<"yaw:" << rc_yaw<<'\n';
+					cout <<"throttle:" << rc_throttle<<'\n';
 					
+*/
+					cout << rc_ch7 << '\n';
+					cout << pos[2] << '\n';
 
-					cout <<"rc_mode: "<< rc_ch7 << '\n';
-
-					if(rc_ch7>1.1 && pos[2]>ECBF_THESHOLD){ // rc mode change & height > threshold
+					if(rc_ch7>1.1 && pos[2]>ECBF_THESHOLD){ /* rc mode change & height > threshold*/
 						acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
                                         	acc_y = g*(rc_roll*sin(rc_yaw)-rc_pitch*cos(rc_yaw));
                                         	acc_z = force/m-g;
@@ -345,25 +262,12 @@ int imu_thread_entry(){
                                         	}
 
                                         	cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
-
-						qp_flag=0;
-						if(abs(pitch_d-imu.acc[1])>0.2 || abs(roll_d-imu.acc[0])>0.2){
-							qp_flag=15;
-						}
-
 					}else{
-						qp_flag=0;
-						
-					       	cout <<"not triggered!\n";	
+					       cout <<"not triggered!\n";	
 						roll_d = imu.acc[0];
 						pitch_d = imu.acc[1];
 						throttle_d = imu.gyrop[0];
 					
-					}
-
-					boundary_flag = 0;
-					if(abs(pos[0])>1 || abs(pos[1])>1){
-						boundary_flag = 10;
 					}
 	
 				
@@ -383,20 +287,21 @@ int imu_thread_entry(){
 					debug_qp.acc_y_new = acc_d[1];
 					debug_qp.acc_z_new = acc_d[2];
 					debug_qp_pub.publish(debug_qp);
+			
+					vel_value.x = vel[0];
+					vel_value.y = vel[1];
+					vel_value.z = vel[2];
+
+					vel_pub.publish(vel_value);
 
 					//send sol to uart
 					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 					//send_pose_to_serial(imu.acc[0],imu.acc[1],imu.gyrop[0],0.0,0.0,0.0,0.0,0.0,0.0,0.0);
-/*
-					vel_value.x = velocity[0];
-					vel_value.y = velocity[1];
-					vel_value.z = velocity[2];
-*/
-					//vel_pub.publish(vel_value);
 
 
 				}
 			}
 		}
+		
 	}
 }

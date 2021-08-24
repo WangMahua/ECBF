@@ -13,8 +13,8 @@
 #include "ros_thread.h"
 
 
-#define K1 4
-#define K2 2
+#define K1 5
+#define K2 3
 #define X_UPPER_BOUND 1
 #define X_LOWER_BOUND -1
 #define Y_UPPER_BOUND 1
@@ -209,8 +209,8 @@ int imu_thread_entry(){
 					rc_yaw = imu.acc[2]*M_PI/180.0;
 					rc_throttle = imu.gyrop[0];
 					//rc_ch7 = imu.gyrop[1];
-					rc_yaw = -90*M_PI/180.0;
-					rc_yaw = 0;
+					//rc_yaw = 0 * M_PI/180.0;
+					rc_yaw = -imu.acc[2]*M_PI/180.0;
 					force = 0 ;
 					for(int i = 0;i<6;i++){
 						force += per2thrust_coeff[5-i]*pow(rc_throttle*0.01,i);
@@ -291,6 +291,7 @@ int imu_thread_entry(){
 					vel_value.x = vel[0];
 					vel_value.y = vel[1];
 					vel_value.z = vel[2];
+					vel_value.z = rc_yaw;
 
 					vel_pub.publish(vel_value);
 

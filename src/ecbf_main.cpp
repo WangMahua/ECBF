@@ -14,7 +14,7 @@
 #include <ecbf_uart/qp_info.h>
 
 #define K1 2
-#define K2 0
+#define K2 3
 #define X_UPPER_BOUND 1
 #define X_LOWER_BOUND -1
 #define Y_UPPER_BOUND 1
@@ -22,8 +22,10 @@
 #define Z_UPPER_BOUND 100
 #define Z_LOWER_BOUND 0.5
 #define ECBF_THESHOLD 0.1
-#define VEL_UPPER_BOUND 10
-#define VEL_LOWER_BOUND -10
+#define VEL_UPPER_BOUND 8
+#define VEL_LOWER_BOUND -8
+
+#define g 9.81
 
 using namespace std;
 
@@ -39,6 +41,7 @@ int rc_ch7;
 ros::Publisher vel_pub;
 
 geometry_msgs::Vector3 vel_value;
+
 double bond(double value){
 	if (value>VEL_UPPER_BOUND)return VEL_UPPER_BOUND;
 	else if (value<VEL_LOWER_BOUND)return VEL_LOWER_BOUND;	
@@ -65,35 +68,41 @@ void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 			pos[2] = msg->pose.position.z;
 
 			double delta_time = now_time - last_time;
-			if(delta_time > 0.008){
-			velocity[0] =(pos[0] - last_pose[0])/delta_time;
-			velocity[1] =(pos[1] - last_pose[1])/delta_time;
-			velocity[2] =(pos[2] - last_pose[2])/delta_time;
-/*
-			if(velocity[0]>8.0f||velocity[0]<-8){
-			cout << "delta time: " << delta_time << '\n';
-			cout << "velocity[0]: " << velocity[0] << '\n';
-			cout << "velocity[1]: " << velocity[1] << '\n';
-			cout << "velocity[2]: " << velocity[2] << '\n';
-			cout << "delta_pos[0]: " << pos[0] - last_pose[0] << '\n';
-			cout << "delta_pos[1]: " << pos[1] - last_pose[1] << '\n';
-			cout << "delta_pos[2]: " << pos[2] - last_pose[2] << '\n';
-			cout << "---\n";}
-/*
+
+			velocity[0] =(pos[0] - last_pose[0])/(float)delta_time;
+			velocity[1] =(pos[1] - last_pose[1])/(float)delta_time;
+			velocity[2] =(pos[2] - last_pose[2])/(float)delta_time;
+			
+
+			
 /*
 			velocity[0] =(pos[0] - last_pose[0])/0.0083;
 			velocity[1] =(pos[1] - last_pose[1])/0.0083;
 			velocity[2] =(pos[2] - last_pose[2])/0.0083;
 */
 			last_pose[0] = pos[0];
-			last_pose[1] = pos[1];
-			last_pose[2] = pos[2];
-			last_time = now_time;
+
 
 			velocity[0] = bond(velocity[0]);
 			velocity[1] = bond(velocity[1]);
 			velocity[2] = bond(velocity[2]);
-	
+
+			if(abs(velocity[0])>7 || abs(velocity[1])>7 || abs(velocity[2])>7){
+				cout << "delta time: " << delta_time << '\n';
+				cout << "velocity[0]: " << velocity[0] << '\n';
+				cout << "velocity[1]: " << velocity[1] << '\n';
+				cout << "velocity[2]: " << velocity[2] << '\n';
+				
+				cout << "delta_pos[0]: " << pos[0] - last_pose[0] << '\n';
+				cout << "delta_pos[1]: " << pos[1] - last_pose[1] << '\n';
+				cout << "delta_pos[2]: " << pos[2] - last_pose[2] << '\n';
+				cout << "---\n";
+			}
+
+			last_pose[1] = pos[1];
+			last_pose[2] = pos[2];
+			last_time = now_time;
+
 			last_velocity[0] = velocity[0];
 			last_velocity[1] = velocity[1];
 			last_velocity[2] = velocity[2];
@@ -102,7 +111,6 @@ void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 			vel_value.y = velocity[1];
 			vel_value.z = velocity[2];
 			vel_pub.publish(vel_value);	
-			}
 		}
 
 }
@@ -170,14 +178,6 @@ float* qp_solve(float* acc){
     float vx = velocity[0];
     float vy = velocity[1];
     float vz = velocity[2];
-
-			cout << "velocity[0]: " << velocity[0] << '\n';
-			cout << "velocity[1]: " << velocity[1] << '\n';
-			cout << "velocity[2]: " << velocity[2] << '\n';
-			cout << "delta_pos[0]: " << pos[0] << '\n';
-			cout << "delta_pos[1]: " << pos[1] << '\n';
-			cout << "delta_pos[2]: " << pos[2]  << '\n';
-cout << "---\n";
 
     // Load problem data
     c_float P_x[3] = {1.0, 1.0, 1.0, };
@@ -247,9 +247,9 @@ cout << "---\n";
 	return acc;
 }
 
-#define g 9.81
 
-int imu_thread_entry(){
+
+int main(int argc, char **argv){
 	char c;
 	imu.buf_pos = 0;
 	float rc_throttle,acc[3];
@@ -261,9 +261,12 @@ int imu_thread_entry(){
 	float velocity[3];
 	float roll_d,pitch_d,yaw_d,force_d,throttle_d;
 	float acc_x,acc_y,acc_z;
-	float acc_d[3] = {0,0,0} ;
+	float acc_d[3] ;
 	int boundary_flag,qp_flag ;
+	ros::init(argc, argv, "ecbf_main");
+	serial_init((char *)"/dev/ECBF_UART", 115200);
 	ros::NodeHandle n;
+	
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
 	ros::Publisher debug_rc_pub = n.advertise<ecbf_uart::rc_info>("rc_info", 1); 
 	ros::Publisher debug_qp_pub = n.advertise<ecbf_uart::qp_info>("qp_info", 1); 
@@ -277,6 +280,7 @@ int imu_thread_entry(){
 	ecbf_uart::qp_info debug_qp;	
 
 	while(ros::ok()){
+		
 		if(serial_getc(&c) != -1) {
 			imu_buf_push(c); 
 			if(imu.buf[0]=='@' && imu.buf[IMU_SERIAL_MSG_SIZE-1] == '+')
@@ -324,7 +328,7 @@ int imu_thread_entry(){
                                         	cout << "acc[0]:"<<acc_d[0]<<'\n';
                                        		cout << "acc[1]:"<<acc_d[1]<<'\n';
                                         	cout << "acc[2]:"<<acc_d[2]<<'\n';
-
+						ros::spinOnce();
                                         	qp_solve(acc_d);
                                         	cout << "qp acc[0]:"<<acc_d[0]<<'\n';
                                         	cout << "qp acc[1]:"<<acc_d[1]<<'\n';
@@ -387,16 +391,19 @@ int imu_thread_entry(){
 					//send sol to uart
 					send_pose_to_serial(roll_d,pitch_d,throttle_d,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 					//send_pose_to_serial(imu.acc[0],imu.acc[1],imu.gyrop[0],0.0,0.0,0.0,0.0,0.0,0.0,0.0);
-/*
+
 					vel_value.x = velocity[0];
 					vel_value.y = velocity[1];
 					vel_value.z = velocity[2];
-*/
-					//vel_pub.publish(vel_value);
+					vel_pub.publish(vel_value);
 
 
 				}
 			}
 		}
+
+
+					//rate.sleep();
+					
 	}
 }

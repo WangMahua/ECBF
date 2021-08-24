@@ -28,11 +28,9 @@ void odom_callback(nav_msgs::Odometry odom)
 			);
 }
 int ros_thread_entry(){
-	
 	ros::NodeHandle n;	
 	ros::Subscriber sub = n.subscribe("vins_estimator/imu_propagate",1000,odom_callback);
 	
 	ros::spin();
-	
 	return 0;
 }

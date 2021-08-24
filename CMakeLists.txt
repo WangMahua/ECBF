@@ -245,9 +245,14 @@ target_link_libraries(vins_to_controller PUBLIC
   ${catkin_LIBRARIES}
   imu_thread
 )
-add_executable(hello src/hello.cpp)
-target_link_libraries(hello 
-  ${catkin_LIBRARIES}
- osqp::osqp
+add_executable(vel_calc
+  src/velocity.cpp
 )
+target_link_libraries(vel_calc PUBLIC
+  ${catkin_LIBRARIES}
+)
+
+
+add_executable(ecbf_main src/ecbf_main.cpp src/serial.cpp)
+target_link_libraries(ecbf_main ${catkin_LIBRARIES} osqp::osqp)
 

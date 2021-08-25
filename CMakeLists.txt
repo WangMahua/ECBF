@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   nav_msgs
   tf2_ros
+tf
   sensor_msgs
   geometry_msgs
   message_generation
@@ -255,4 +256,7 @@ target_link_libraries(vel_calc PUBLIC
 
 add_executable(ecbf_main src/ecbf_main.cpp src/serial.cpp)
 target_link_libraries(ecbf_main ${catkin_LIBRARIES} osqp::osqp)
+
+add_executable(odometry src/odometry.cpp)
+target_link_libraries(odometry ${catkin_LIBRARIES} )
 

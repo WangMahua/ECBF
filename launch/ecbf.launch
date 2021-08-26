@@ -1,0 +1,13 @@
+<launch>
+
+
+	<node pkg="ecbf_uart" type="odometry" name="odometry" output="screen" respawn="true">
+	</node>
+	<node pkg="ecbf_uart" type="vins_to_controller" name="main" output="screen" respawn="true">
+	</node>
+
+
+
+
+
+</launch>

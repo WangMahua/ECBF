@@ -8,20 +8,28 @@
 #include <cmath>
 #include "osqp.h"
 #include <geometry_msgs/Twist.h>
-#include <ecbf_uart/rc_info.h>
-#include <ecbf_uart/qp_info.h>
 #include "ros_thread.h"
 
 
+#define PATH_MODE 0 /* 0:box 1:tube */
+
 #define K1 5
 #define K2 3
+#define ECBF_THESHOLD 0.1
+
+//box
 #define X_UPPER_BOUND 1
 #define X_LOWER_BOUND -1
 #define Y_UPPER_BOUND 1
 #define Y_LOWER_BOUND -1
 #define Z_UPPER_BOUND 100
 #define Z_LOWER_BOUND 0.5
-#define ECBF_THESHOLD 0.1
+
+//tube
+#define R_MAX 1.3
+#define R_MIN 0.5
+#define Z_UPPER_BOUND 100
+#define Z_LOWER_BOUND 0.5
 
 using namespace std;
 
@@ -99,12 +107,27 @@ float* qp_solve(float* acc){
     c_int P_i[3] = {0, 1, 2, };
     c_int P_p[4] = {0, 1, 2, 3,};
     c_float q[3] = {-acc[0], -acc[1], -acc[2]};
-    c_float A_x[3] = {1.0, 1.0, 1.0, };
-    c_int A_nnz = 3;
-    c_int A_i[3] = {0, 1, 2, };
-    c_int A_p[4] = {0, 1, 2, 3, };
-    c_float l[3] = {-K1*(px-X_LOWER_BOUND)-K2*(vx), -K1*(py-Y_LOWER_BOUND)-K2*(vy), -K1*(pz-Z_LOWER_BOUND)-K2*(vz), };
-    c_float u[3] = {K1*(X_UPPER_BOUND-px)-K2*(vx),K1*(Y_UPPER_BOUND-py)-K2*(vy), K1*(Z_UPPER_BOUND-pz)-K2*(vz), };
+
+	#if PATH_MODE == 0
+		c_float A_x[3] = {1.0, 1.0, 1.0, };
+		c_int A_nnz = 3;
+		c_int A_i[3] = {0, 1, 2, };
+		c_int A_p[4] = {0, 1, 2, 3, };
+		c_float l[3] = {-K1*(px-X_LOWER_BOUND)-K2*(vx), -K1*(py-Y_LOWER_BOUND)-K2*(vy), -K1*(pz-Z_LOWER_BOUND)-K2*(vz), };
+		c_float u[3] = {K1*(X_UPPER_BOUND-px)-K2*(vx),K1*(Y_UPPER_BOUND-py)-K2*(vy), K1*(Z_UPPER_BOUND-pz)-K2*(vz), };
+		c_int n = 3;
+		c_int m = 3;
+	#elif PATH_MODE == 1
+		c_float A_x[3] = {2.0*px, 2.0*py, 1.0, };
+		c_int A_nnz = 3;
+		c_int A_i[3] = {0, 0, 1, };
+		c_int A_p[4] = {0, 1, 2, 3, };
+		c_float l[2] = {-K1*(px*px+py*py-R_MIN*R_MIN)-K2*(2*vx*px+2*vy*py) -2*(vx*vx+vy*vy), -K1*(pz-Z_LOWER_BOUND)-K2*(vz), };
+		c_float u[2] = {K1*(R_MAX*R_MAX-px*px-py*py)-K2*(2*vx*px+2*vy*py) -2*(vx*vx+vy*vy), K1*(Z_UPPER_BOUND-pz)-K2*(vz), };
+		c_int n = 3;
+		c_int m = 2;
+	#endif
+
 /*
 	cout << "px:"<< px<<"\n";
 	cout << "py:"<< py<<"\n";
@@ -113,8 +136,7 @@ float* qp_solve(float* acc){
 	cout << "vy:"<< vy<<"\n";
 	cout << "vz:"<< vz<<"\n";
 */
-	c_int n = 3;
-    	c_int m = 3;
+
 
     // Exitflag
     c_int exitflag = 0;
@@ -179,8 +201,8 @@ int imu_thread_entry(){
 	float acc_d[3] ;
 	ros::NodeHandle n;
 	ros::Publisher qp_pub = n.advertise<geometry_msgs::Twist>("qp", 1); 
-	ros::Publisher debug_rc_pub = n.advertise<ecbf_uart::rc_info>("rc_info", 1); 
-	ros::Publisher debug_qp_pub = n.advertise<ecbf_uart::qp_info>("qp_info", 1); 
+	ros::Publisher debug_rc_pub = n.advertise<geometry_msgs::Twist>("rc_info", 1); 
+	ros::Publisher debug_qp_pub = n.advertise<geometry_msgs::Twist>("qp_info", 1); 
 	ros::Publisher vel_pub = n.advertise<geometry_msgs::Vector3>("vel_info", 1); 
 	
 	geometry_msgs::Vector3 vel_value;
@@ -189,8 +211,8 @@ int imu_thread_entry(){
 
 
 	/* debug */
-	ecbf_uart::rc_info debug_rc;	
-	ecbf_uart::qp_info debug_qp;	
+	geometry_msgs::Twist debug_rc;
+	geometry_msgs::Twist debug_qp;	
 
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
@@ -272,20 +294,20 @@ int imu_thread_entry(){
 	
 				
 					//debug
-					debug_rc.rc_roll = imu.acc[0];
-					debug_rc.rc_pitch = imu.acc[1];
-					debug_rc.rc_throttle = imu.gyrop[0];
-					debug_rc.qp_roll = roll_d;
-					debug_rc.qp_pitch = pitch_d;
-					debug_rc.qp_throttle = throttle_d;
+					debug_rc.linear.x = imu.acc[0];
+					debug_rc.linear.y = imu.acc[1];
+					debug_rc.linear.z = imu.gyrop[0];
+					debug_rc.angular.x = roll_d;
+					debug_rc.angular.y = pitch_d;
+					debug_rc.angular.z = throttle_d;
 					debug_rc_pub.publish(debug_rc);
 
-					debug_qp.acc_x_old = acc_x;
-					debug_qp.acc_y_old = acc_y;
-					debug_qp.acc_z_old = acc_z;
-					debug_qp.acc_x_new = acc_d[0];
-					debug_qp.acc_y_new = acc_d[1];
-					debug_qp.acc_z_new = acc_d[2];
+					debug_qp.linear.x = acc_x;
+					debug_qp.linear.y = acc_y;
+					debug_qp.linear.z = acc_z;
+					debug_qp.angular.x = acc_d[0];
+					debug_qp.angular.y = acc_d[1];
+					debug_qp.angular.z = acc_d[2];
 					debug_qp_pub.publish(debug_qp);
 			
 					vel_value.x = vel[0];

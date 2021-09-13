@@ -2,6 +2,7 @@
 #include <iostream>
 #include <tf/transform_broadcaster.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 
 
 #define PI 3.14159
@@ -12,6 +13,10 @@ float yaw = 0.0;
 bool pose_init_flag=false;
 float q_x,q_y,q_z,q_w;
 geometry_msgs::Quaternion odom_quat;
+nav_msgs::Path path;
+ros::Publisher path_pub;
+geometry_msgs::PoseStamped new_msg;
+
 void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 		
 		if (pose_init_flag == false){
@@ -45,9 +50,13 @@ void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	q_y = msg->pose.orientation.y;
 	q_z = msg->pose.orientation.z;
 	q_w = msg->pose.orientation.w;
-	//yaw = atan2(2.0*(q_y*q_x + q_w*q_z), 1 - 2* (q_y*q_y + q_z*q_z));
 
-		
+	//pub path info 
+/*
+	path.header = msg->header;
+	path.poses.push_back(*msg);
+	path_pub.publish(path);
+		*/
 }
 
 int main(int argc ,char **argv){
@@ -57,6 +66,7 @@ int main(int argc ,char **argv){
   ros::Publisher odom_pub = n.advertise<nav_msgs::Odometry>("odom", 50);
 ros::Subscriber pos_sub = n.subscribe("/vrpn_client_node/MAV1/pose", 1, pos_callback);
   tf::TransformBroadcaster odom_broadcaster;
+  path_pub = n.advertise<nav_msgs::Path>("ECBF_Path", 1);
 
   ros::Time current_time, last_time;
   current_time = ros::Time::now();

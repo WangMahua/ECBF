@@ -56,8 +56,8 @@ find_package(osqp REQUIRED)
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-   rc_info.msg
-   qp_info.msg
+   Rc_info.msg
+   Qp_info.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -78,7 +78,7 @@ add_message_files(
 generate_messages(
    DEPENDENCIES
    std_msgs
- )
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -126,6 +126,7 @@ set(INC
     ./ 
     ./src
     ./src/thread
+
 )
 
 ## Specify additional locations of header files
@@ -147,7 +148,7 @@ include_directories(
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
@@ -246,16 +247,16 @@ target_link_libraries(vins_to_controller PUBLIC
   ${catkin_LIBRARIES}
   imu_thread
 )
-add_executable(vel_calc
-  src/velocity.cpp
-)
-target_link_libraries(vel_calc PUBLIC
-  ${catkin_LIBRARIES}
-)
+#add_executable(vel_calc
+#  src/velocity.cpp
+#)
+#target_link_libraries(vel_calc PUBLIC
+#  ${catkin_LIBRARIES}
+#)
 
 
-add_executable(ecbf_main src/ecbf_main.cpp src/serial.cpp)
-target_link_libraries(ecbf_main ${catkin_LIBRARIES} osqp::osqp)
+#add_executable(ecbf_main src/ecbf_main.cpp src/serial.cpp)
+#target_link_libraries(ecbf_main ${catkin_LIBRARIES} osqp::osqp)
 
 add_executable(odometry src/odometry.cpp)
 target_link_libraries(odometry ${catkin_LIBRARIES} )

@@ -10,6 +10,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Path.h>
 
+#define upper_v 7
+#define lower_v -7
 
 using namespace std;
 
@@ -17,11 +19,21 @@ mutex ros_mutex;
 
 double pos[3] = {0,0,0};
 double vel[3] = {0,0,0};
+double last_vel[3] = {0,0,0};
 double last_pos[3] = {0,0,0};
 double last_time = 0;
 bool pose_init_flag = false;
 nav_msgs::Path path;
 ros::Publisher path_pub;
+
+float bound(float v){
+	if(v>upper_v){
+		v = upper_v;
+	}else if(v<lower_v){
+		v = lower_v;
+	}
+	return v;
+}
 
 void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 		double now_time;
@@ -45,6 +57,9 @@ void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 			vel[0] =(pos[0] - last_pos[0])/0.0083;
 			vel[1] =(pos[1] - last_pos[1])/0.0083;
 			vel[2] =(pos[2] - last_pos[2])/0.0083;
+			vel[0] = bound(vel[0]);
+			vel[1] = bound(vel[1]);
+			vel[2] = bound(vel[2]);
 			last_pos[0] = pos[0];
 			last_pos[1] = pos[1];
 			last_pos[2] = pos[2];

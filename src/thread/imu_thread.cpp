@@ -11,7 +11,10 @@
 #include "ros_thread.h"
 
 
-#define PATH_MODE 0 /* 0:box 1:tube */
+#define upper_rc 35
+#define lower_rc -35
+
+#define PATH_MODE 1 /* 0:box 1:tube */
 
 #define K1 5
 #define K2 3
@@ -36,6 +39,14 @@ using namespace std;
 mutex imu_mutex;
 imu_t imu;
 int rc_ch7;
+float bound_rc(float v){
+	if(v>upper_rc){
+		v = upper_rc;
+	}else if(v<lower_rc){
+		v = lower_rc;
+	}
+	return v;
+}
 
 uint8_t generate_imu_checksum_byte(uint8_t *payload, int payload_count)
 {
@@ -161,6 +172,7 @@ float* qp_solve(float* acc){
     if (settings) {
         osqp_set_default_settings(settings);
         settings->alpha = 1.0; // Change alpha parameter
+	settings->verbose = false;
     }
 
     // Setup workspace
@@ -208,7 +220,9 @@ int imu_thread_entry(){
 	geometry_msgs::Vector3 vel_value;
 	
 	cout<<"start\n";
-
+	acc_x = 0;
+	acc_y = 0;
+acc_z = 0;
 
 	/* debug */
 	geometry_msgs::Twist debug_rc;
@@ -246,8 +260,8 @@ int imu_thread_entry(){
 					cout <<"throttle:" << rc_throttle<<'\n';
 					
 */
-					cout << rc_ch7 << '\n';
-					cout << pos[2] << '\n';
+					cout << "rc mode:" << rc_ch7 << '\n';
+					cout << "height:" << pos[2] << '\n';
 
 					if(rc_ch7>1.1 && pos[2]>ECBF_THESHOLD){ /* rc mode change & height > threshold*/
 						acc_x = g*(rc_roll*cos(rc_yaw)+rc_pitch*sin(rc_yaw));
@@ -273,6 +287,8 @@ int imu_thread_entry(){
                                         	pitch_d = -((-cos(rc_yaw)*acc_d[1]+sin(rc_yaw)*acc_d[0])/g*180.0/M_PI);
                                         	force_d = m*(acc_d[2] +g);
                                         	force_d = force_d /4 *1000 /9.81;
+						roll_d = bound_rc(roll_d);
+						pitch_d = bound_rc(pitch_d);
 
                                         	cout << "roll_d:"<<roll_d<<'\n';
                                         	cout << "pitch_d:"<<pitch_d<<'\n';
@@ -284,6 +300,7 @@ int imu_thread_entry(){
                                         	}
 
                                         	cout << "force_d:"<<force_d<<"\t thrust:"<<throttle_d<<'\n';
+						cout << "===\n";
 					}else{
 					       cout <<"not triggered!\n";	
 						roll_d = imu.acc[0];
@@ -313,7 +330,7 @@ int imu_thread_entry(){
 					vel_value.x = vel[0];
 					vel_value.y = vel[1];
 					vel_value.z = vel[2];
-					vel_value.z = rc_yaw;
+					
 
 					vel_pub.publish(vel_value);
 

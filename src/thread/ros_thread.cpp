@@ -10,8 +10,9 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Path.h>
 
-#define upper_v 7
-#define lower_v -7
+#define upper_v 4
+#define lower_v -4
+#define DEL_V 0.3
 
 using namespace std;
 
@@ -33,6 +34,23 @@ float bound(float v){
 		v = lower_v;
 	}
 	return v;
+}
+float fix_vel(float now_vel,float old_vel){
+	float new_vel = old_vel;
+	float delta_vel = 0.0;
+	delta_vel = now_vel-old_vel;
+	if(abs(delta_vel)>DEL_V){
+		if(delta_vel>0){
+			new_vel +=DEL_V;
+		}else{
+			new_vel -=DEL_V;
+		}
+	}else{
+		new_vel = now_vel;
+	}
+	new_vel = bound(new_vel);
+	return new_vel;
+	
 }
 
 void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
@@ -57,9 +75,12 @@ void pos_callback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 			vel[0] =(pos[0] - last_pos[0])/0.0083;
 			vel[1] =(pos[1] - last_pos[1])/0.0083;
 			vel[2] =(pos[2] - last_pos[2])/0.0083;
-			vel[0] = bound(vel[0]);
-			vel[1] = bound(vel[1]);
-			vel[2] = bound(vel[2]);
+			vel[0] = fix_vel(vel[0],last_vel[0]);
+			vel[1] = fix_vel(vel[1],last_vel[1]);
+			vel[2] = fix_vel(vel[2],last_vel[2]);
+			last_vel[0] = vel[0];
+			last_vel[1] = vel[1];
+			last_vel[2] = vel[2];
 			last_pos[0] = pos[0];
 			last_pos[1] = pos[1];
 			last_pos[2] = pos[2];

@@ -39,6 +39,7 @@ using namespace std;
 mutex imu_mutex;
 imu_t imu;
 int rc_ch7;
+rc_data rc;
 
 float bound_rc(float v){
 	if(v>upper_rc){
@@ -49,8 +50,7 @@ float bound_rc(float v){
 	return v;
 }
 
-uint8_t generate_imu_checksum_byte(uint8_t *payload, int payload_count)
-{
+uint8_t generate_imu_checksum_byte(uint8_t *payload, int payload_count){
 	uint8_t result = IMU_CHECKSUM_INIT_VAL;
 
 	int i;
@@ -67,23 +67,16 @@ int imu_decode(uint8_t *buf){
 	if(checksum != recv_checksum) {
 		return 1; //error detected
 	}
-	float enu_acc_x, enu_acc_y, enu_acc_z;
 
-	memcpy(&enu_acc_x, &buf[2], sizeof(float)); //in ned coordinate system
-	memcpy(&enu_acc_y, &buf[6], sizeof(float));
-	memcpy(&enu_acc_z, &buf[10], sizeof(float));
-	imu.acc[0] = enu_acc_x; //east
-	imu.acc[1] = enu_acc_y; //north
-	imu.acc[2] = enu_acc_z; //up
+	memcpy(&rc.roll, &buf[2], sizeof(float)); //in ned coordinate system
+	memcpy(&rc.pitch, &buf[6], sizeof(float));
+	memcpy(&rc.yaw, &buf[10], sizeof(float));
 
 	/* swap the order of quaternion to make the frame consistent with ahrs' rotation order */
-	memcpy(&imu.gyrop[0], &buf[14], sizeof(float));
-	memcpy(&rc_ch7, &buf[18], sizeof(int));
-	memcpy(&imu.gyrop[2], &buf[22], sizeof(float));
+	memcpy(&rc.throttle, &buf[14], sizeof(float));
+	memcpy(&rc.mode, &buf[18], sizeof(int));
 	
 	return 0;
-
-
 }
 
 void imu_buf_push(uint8_t c)
@@ -139,16 +132,6 @@ float* qp_solve(float* acc){
 		c_int n = 3;
 		c_int m = 2;
 	#endif
-
-/*
-	cout << "px:"<< px<<"\n";
-	cout << "py:"<< py<<"\n";
-	cout << "pz:"<< pz<<"\n";
-	cout << "vx:"<< vx<<"\n";
-	cout << "vy:"<< vy<<"\n";
-	cout << "vz:"<< vz<<"\n";
-*/
-
 
     // Exitflag
     c_int exitflag = 0;
@@ -241,9 +224,9 @@ acc_z = 0;
 				*/
 				if(imu_decode(imu.buf)==0)
 				{
-					rc_roll = -imu.acc[0]*M_PI/180.0;
-					rc_pitch = -imu.acc[1]*M_PI/180.0;
-					rc_yaw = imu.acc[2]*M_PI/180.0;
+					rc_roll = -rc.roll*M_PI/180.0;
+					rc_pitch = -rc.pitch*M_PI/180.0;
+					rc_yaw = rc.yaw*M_PI/180.0;
 					rc_throttle = imu.gyrop[0];
 					//rc_ch7 = imu.gyrop[1];
 					//rc_yaw = 0 * M_PI/180.0;
@@ -269,8 +252,6 @@ acc_z = 0;
                                         	acc_y = g*(rc_roll*sin(rc_yaw)-rc_pitch*cos(rc_yaw));
                                         	acc_z = force/m-g;
 
-
-                                        	
                                         	acc_d[0] = acc_x;
                                         	acc_d[1] = acc_y;
                                         	acc_d[2] = acc_z;

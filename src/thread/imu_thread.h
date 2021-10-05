@@ -17,6 +17,20 @@ typedef struct {
 	
 } imu_t ;
 
+typedef struct {
+	
+	float roll;
+
+	float pitch;
+
+	float yaw;
+
+	float throttle;
+
+	int mode;
+	
+} rc_data ;
+
 uint8_t generate_imu_checksum_byte(uint8_t *, int);
 
 int imu_decode(uint8_t *);

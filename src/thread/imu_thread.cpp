@@ -230,6 +230,7 @@ acc_z = 0;
 
 	while(ros::ok()){
 		if(serial_getc(&c) != -1) {
+			
 			imu_buf_push(c); 
 			if(imu.buf[0]=='@' && imu.buf[IMU_SERIAL_MSG_SIZE-1] == '+')
 			{
